@@ -36,7 +36,7 @@
     "@vercel/go": "3.0.5",
     "@vercel/hydrogen": "1.0.2",
     "@vercel/next": "4.1.1",
-    "@vercel/node": "3.0.18",
+    "@vercel/node": "3.2.0",
     "@vercel/python": "4.1.1",
     "@vercel/redwood": "2.0.7",
     "@vercel/remix-builder": "2.0.19",
