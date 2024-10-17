@@ -37,8 +37,11 @@ export interface GlobalConfig {
   '// Note'?: string;
   '// Docs'?: string;
   currentTeam?: string;
-  collectMetrics?: boolean;
   api?: string;
+
+  telemetry?: {
+    enabled?: boolean;
+  };
 
   // TODO: legacy - remove
   updateChannel?: string;
@@ -373,6 +376,7 @@ export interface Project extends ProjectSettings {
   targets?: {
     production?: Deployment;
   };
+  customEnvironments?: CustomEnvironment[];
 }
 
 export interface Org {

@@ -14,8 +14,11 @@ export default new Map([
   ['env', 'env'],
   ['git', 'git'],
   ['help', 'help'],
+  ['i', 'install'],
   ['init', 'init'],
   ['inspect', 'inspect'],
+  ['install', 'install'],
+  ['integration', 'integration'],
   ['link', 'link'],
   ['list', 'list'],
   ['ln', 'alias'],
@@ -37,5 +40,6 @@ export default new Map([
   ['targets', 'target'],
   ['team', 'teams'],
   ['teams', 'teams'],
+  ['telemetry', 'telemetry'],
   ['whoami', 'whoami'],
 ]);
