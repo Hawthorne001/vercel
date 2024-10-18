@@ -1,4 +1,3 @@
-import error from '../../util/output/error';
 import list from './list';
 import add from './add';
 import change from './switch';
@@ -9,8 +8,16 @@ import { teamsCommand } from './command';
 import { help } from '../help';
 import { getFlagsSpecification } from '../../util/get-flags-specification';
 import handleError from '../../util/handle-error';
+import { TeamsTelemetryClient } from '../../util/telemetry/commands/teams';
 
 export default async (client: Client) => {
+  const telemetryClient = new TeamsTelemetryClient({
+    opts: {
+      output: client.output,
+      store: client.telemetryEventStore,
+    },
+  });
+
   let subcommand;
 
   let parsedArgs = null;
@@ -63,14 +70,14 @@ export default async (client: Client) => {
     }
 
     case 'invite': {
+      telemetryClient.trackCliSubcommandInvite('invite');
       exitCode = await invite(client, parsedArgs.args);
       break;
     }
     default: {
       if (subcommand !== 'help') {
-        // eslint-disable-next-line no-console
-        console.error(
-          error('Please specify a valid subcommand: add | ls | switch | invite')
+        output.error(
+          'Please specify a valid subcommand: add | ls | switch | invite'
         );
       }
       exitCode = 2;

@@ -13,6 +13,7 @@ import Client from '../../src/util/client';
 import { Output } from '../../src/util/output';
 import stripAnsi from 'strip-ansi';
 import ansiEscapes from 'ansi-escapes';
+import { TelemetryEventStore } from '../../src/util/telemetry';
 
 const ignoredAnsi = new Set([ansiEscapes.cursorHide, ansiEscapes.cursorShow]);
 
@@ -72,6 +73,12 @@ class MockStream extends PassThrough {
   }
 }
 
+class MockTelemetryEventStore extends TelemetryEventStore {
+  save(): void {
+    return;
+  }
+}
+
 export class MockClient extends Client {
   stdin!: MockStream;
   stdout!: MockStream;
@@ -84,7 +91,6 @@ export class MockClient extends Client {
     super({
       // Gets populated in `startMockServer()`
       apiUrl: '',
-
       // Gets re-initialized for every test in `reset()`
       argv: [],
       authConfig: {},
@@ -94,6 +100,10 @@ export class MockClient extends Client {
       stdout: new PassThrough(),
       stderr: new PassThrough(),
       output: new Output(new PassThrough()),
+    });
+
+    this.telemetryEventStore = new MockTelemetryEventStore({
+      output: this.output,
     });
 
     this.app = express();
@@ -109,7 +119,7 @@ export class MockClient extends Client {
       const message = `[Vercel API Mock] \`${req.method} ${req.path}\` was not handled.`;
       // eslint-disable-next-line no-console
       console.warn(message);
-      res.status(404).json({
+      res.status(500).json({
         error: {
           code: 'not_found',
           message,
@@ -136,7 +146,7 @@ export class MockClient extends Client {
     this.stderr.pause();
     this.stderr.isTTY = true;
 
-    this.output = new Output(this.stderr);
+    this.output = new Output(this.stderr, { supportsHyperlink: false });
 
     this.argv = [];
     this.authConfig = {
@@ -152,6 +162,7 @@ export class MockClient extends Client {
     this.agent = undefined;
 
     this.cwd = originalCwd;
+    this.telemetryEventStore.reset();
   }
 
   events = {
@@ -184,6 +195,7 @@ export class MockClient extends Client {
     const lastScreen = stderr.getLastChunk({ raw });
     return raw ? lastScreen : stripAnsi(lastScreen).trim();
   }
+
   getFullOutput(): string {
     const stderr = client.stderr;
     return stderr.getFullOutput();
@@ -221,6 +233,7 @@ export class MockClient extends Client {
     this.output = new Output(this.stderr, {
       debug: argv.includes('--debug') || argv.includes('-d'),
       noColor: argv.includes('--no-color'),
+      supportsHyperlink: false,
     });
   }
 
@@ -239,8 +252,24 @@ beforeAll(async () => {
   await client.startMockServer();
 });
 
-afterEach(() => {
+afterEach(async context => {
+  let extraError;
+
+  if (context.task.result?.state === 'fail') {
+    const stderr = client.stderr.getFullOutput() || '(none)';
+    const stdout = client.stdout.getFullOutput() || '(none)';
+
+    // we have to capture this data before calling `client.reset()`
+    extraError = `(retrieving command output because of test failure)\n\n[STDERR]\n${stderr}\n\n[STDOUT]\n${stdout}`;
+  }
+
   client.reset();
+
+  if (extraError) {
+    // we want to throw this after calling `client.reset()`
+    // so the next test has a clear state
+    throw new Error(extraError);
+  }
 });
 
 afterAll(async () => {

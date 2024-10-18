@@ -311,6 +311,23 @@ it('should throw for discontinued versions', async () => {
   }
 });
 
+it('should only allow nodejs22.x when env var is set', async () => {
+  try {
+    expect(getLatestNodeVersion()).toHaveProperty('major', 20);
+    expect(getSupportedNodeVersion('22.x')).rejects.toThrow();
+
+    process.env.VERCEL_ALLOW_NODEJS22 = '1';
+
+    expect(getLatestNodeVersion()).toHaveProperty('major', 22);
+    expect(await getSupportedNodeVersion('22.x')).toHaveProperty('major', 22);
+    expect(await getSupportedNodeVersion('22')).toHaveProperty('major', 22);
+    expect(await getSupportedNodeVersion('22.1.0')).toHaveProperty('major', 22);
+    expect(await getSupportedNodeVersion('>=20')).toHaveProperty('major', 22);
+  } finally {
+    delete process.env.VERCEL_ALLOW_NODEJS22;
+  }
+});
+
 it('should warn for deprecated versions, soon to be discontinued', async () => {
   // Mock a future date so that Node 16 warns
   const realDateNow = Date.now;
@@ -538,6 +555,83 @@ it('should support experimentalStreamingLambdaPath correctly', async () => {
   );
 });
 
+it('should support chain correctly', async () => {
+  new Prerender({
+    expiration: 1,
+    fallback: null,
+    group: 1,
+    bypassToken: 'some-long-bypass-token-to-make-it-work',
+    chain: undefined,
+  });
+  new Prerender({
+    expiration: 1,
+    fallback: null,
+    group: 1,
+    bypassToken: 'some-long-bypass-token-to-make-it-work',
+    chain: {
+      outputPath: '/some/path/to/lambda',
+      headers: { 'x-nextjs-data': 'true' },
+    },
+  });
+  new Prerender({
+    expiration: 1,
+    fallback: null,
+    group: 1,
+    bypassToken: 'some-long-bypass-token-to-make-it-work',
+    chain: {
+      outputPath: '/some/path/to/lambda',
+      headers: { 'x-nextjs-data': 'true', 'x-nextjs-data-2': 'true' },
+    },
+  });
+
+  expect(() => {
+    new Prerender({
+      expiration: 1,
+      fallback: null,
+      group: 1,
+      bypassToken: 'some-long-bypass-token-to-make-it-work',
+      // @ts-expect-error testing invalid field
+      chain: 'true',
+    });
+  }).toThrowError('The `chain` argument for `Prerender` must be an object.');
+  expect(() => {
+    new Prerender({
+      expiration: 1,
+      fallback: null,
+      group: 1,
+      bypassToken: 'some-long-bypass-token-to-make-it-work',
+      // @ts-expect-error testing invalid field
+      chain: { headers: 'true' },
+    });
+  }).toThrowError(
+    'The `chain.headers` argument for `Prerender` must be an object with string key/values'
+  );
+  expect(() => {
+    new Prerender({
+      expiration: 1,
+      fallback: null,
+      group: 1,
+      bypassToken: 'some-long-bypass-token-to-make-it-work',
+      // @ts-expect-error testing invalid field
+      chain: { headers: { 'x-nextjs-data': 1 } },
+    });
+  }).toThrowError(
+    'The `chain.headers` argument for `Prerender` must be an object with string key/values'
+  );
+  expect(() => {
+    new Prerender({
+      expiration: 1,
+      fallback: null,
+      group: 1,
+      bypassToken: 'some-long-bypass-token-to-make-it-work',
+      // @ts-expect-error testing invalid field
+      chain: { headers: {} },
+    });
+  }).toThrowError(
+    'The `chain.outputPath` argument for `Prerender` must be a string.'
+  );
+});
+
 it('should support require by path for legacy builders', () => {
   const index = require('../');
 
@@ -711,6 +805,81 @@ it('should detect package.json in nested frontend', async () => {
   // There is no lockfile but this test will pick up vercel/vercel/pnpm-lock.yaml
   expect(result.lockfileVersion).toEqual(6);
   expect(result.packageJsonPath).toEqual(path.join(fixture, 'package.json'));
+});
+
+it('should detect turborepo project supporting corepack', async () => {
+  const base = path.join(
+    __dirname,
+    'fixtures',
+    '41-turborepo-supporting-corepack-home'
+  );
+  const fixture = path.join(base, '/apps/web');
+  const result = await scanParentDirs(fixture, true, base);
+  expect(result.turboSupportsCorepackHome).toEqual(true);
+});
+
+it('should handle turborepo project with comments in turbo.json', async () => {
+  const base = path.join(
+    __dirname,
+    'fixtures',
+    '43-turborepo-with-comments-in-turbo-json'
+  );
+  const fixture = path.join(base, '/apps/web');
+  const result = await scanParentDirs(fixture, true, base);
+  expect(result.turboSupportsCorepackHome).toEqual(true);
+});
+
+it('should detect turborepo project not supporting corepack', async () => {
+  const base = path.join(
+    __dirname,
+    'fixtures',
+    '42-turborepo-not-supporting-corepack-home'
+  );
+  const fixture = path.join(base, '/apps/web');
+  const result = await scanParentDirs(fixture, true, base);
+  expect(result.turboSupportsCorepackHome).toEqual(false);
+});
+
+it('should detect non-turborepo monorepo', async () => {
+  const base = path.join(__dirname, 'fixtures', '23-pnpm-workspaces');
+  const fixture = path.join(base, '/c');
+  const result = await scanParentDirs(fixture, true, base);
+  expect(result.turboSupportsCorepackHome).toEqual(undefined);
+});
+
+it('should detect `packageManager` in npm monorepo', async () => {
+  try {
+    process.env.ENABLE_EXPERIMENTAL_COREPACK = '1';
+
+    const base = path.join(__dirname, 'fixtures', '41-npm-workspaces-corepack');
+    const fixture = path.join(base, 'a');
+    const result = await scanParentDirs(fixture, false, base);
+    expect(result.cliType).toEqual('npm');
+    expect(result.packageJsonPackageManager).toEqual('npm@10.7.0');
+    expect(result.lockfileVersion).toEqual(undefined);
+    expect(result.packageJsonPath).toEqual(path.join(fixture, 'package.json'));
+  } finally {
+    delete process.env.ENABLE_EXPERIMENTAL_COREPACK;
+  }
+});
+
+it('should detect `packageManager` in pnpm monorepo', async () => {
+  try {
+    process.env.ENABLE_EXPERIMENTAL_COREPACK = '1';
+    const base = path.join(
+      __dirname,
+      'fixtures',
+      '42-pnpm-workspaces-corepack'
+    );
+    const fixture = path.join(base, 'c');
+    const result = await scanParentDirs(fixture, false, base);
+    expect(result.cliType).toEqual('pnpm');
+    expect(result.packageJsonPackageManager).toEqual('pnpm@8.3.1');
+    expect(result.lockfileVersion).toEqual(undefined);
+    expect(result.packageJsonPath).toEqual(path.join(fixture, 'package.json'));
+  } finally {
+    delete process.env.ENABLE_EXPERIMENTAL_COREPACK;
+  }
 });
 
 it('should retry npm install when peer deps invalid and npm@8 on node@16', async () => {

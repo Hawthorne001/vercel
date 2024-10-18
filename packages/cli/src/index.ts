@@ -13,6 +13,25 @@ try {
   }
 }
 
+{
+  const SILENCED_ERRORS = [
+    'DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.',
+  ];
+
+  // eslint-disable-next-line no-console
+  const originalError = console.error;
+  // eslint-disable-next-line no-console
+  console.error = (msg: unknown) => {
+    const isSilencedError = SILENCED_ERRORS.some(
+      error => typeof msg === 'string' && msg.includes(error)
+    );
+    if (isSilencedError) {
+      return;
+    }
+    originalError(msg);
+  };
+}
+
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { mkdirp } from 'fs-extra';
@@ -26,8 +45,6 @@ import commands from './commands';
 import pkg from './util/pkg';
 import { Output } from './util/output';
 import cmd from './util/output/cmd';
-import info from './util/output/info';
-import error from './util/output/error';
 import param from './util/output/param';
 import highlight from './util/output/highlight';
 import { parseArguments } from './util/get-args';
@@ -47,7 +64,6 @@ import * as ERRORS from './util/errors-ts';
 import { APIError } from './util/errors-ts';
 import { SENTRY_DSN } from './util/constants';
 import getUpdateCommand from './util/get-update-command';
-import { metrics, shouldCollectMetrics } from './util/metrics';
 import { getCommandName, getTitleName } from './util/pkg-name';
 import doLoginPrompt from './util/login/prompt';
 import type { AuthConfig, GlobalConfig } from '@vercel-internals/types';
@@ -55,6 +71,8 @@ import { VercelConfig } from '@vercel/client';
 import { ProxyAgent } from 'proxy-agent';
 import box from './util/output/box';
 import { execExtension } from './util/extension/exec';
+import { TelemetryEventStore } from './util/telemetry';
+import { RootTelemetryClient } from './util/telemetry/root';
 import { help } from './args';
 import { updateCurrentTeamAfterLogin } from './util/login/update-current-team-after-login';
 
@@ -64,6 +82,13 @@ const VERCEL_AUTH_CONFIG_PATH = configFiles.getAuthConfigFilePath();
 
 const GLOBAL_COMMANDS = new Set(['help']);
 
+/*
+  By default, node throws EPIPE errors if process.stdout is being written to
+  and a user runs it through a pipe that gets closed while the process is still outputting
+  (eg, the simple case of piping a node app through head).
+
+  This suppresses those errors.
+*/
 epipebomb();
 
 // Configure the error reporting system
@@ -193,7 +218,7 @@ const main = async () => {
     if (isErrnoException(err) && err.code === 'ENOENT') {
       config = defaultGlobalConfig;
       try {
-        configFiles.writeToConfigFile(config);
+        configFiles.writeToConfigFile(output, config);
       } catch (err: unknown) {
         output.error(
           `An unexpected error occurred while trying to save the config to "${hp(
@@ -219,7 +244,7 @@ const main = async () => {
     if (isErrnoException(err) && err.code === 'ENOENT') {
       authConfig = defaultAuthConfig;
       try {
-        configFiles.writeToAuthConfigFile(authConfig);
+        configFiles.writeToAuthConfigFile(output, authConfig);
       } catch (err: unknown) {
         output.error(
           `An unexpected error occurred while trying to write the auth config to "${hp(
@@ -237,6 +262,34 @@ const main = async () => {
       return 1;
     }
   }
+
+  const telemetryEventStore = new TelemetryEventStore({
+    isDebug: process.env.VERCEL_TELEMETRY_DEBUG === '1',
+    output,
+    config: config.telemetry,
+  });
+
+  const telemetry = new RootTelemetryClient({
+    opts: {
+      store: telemetryEventStore,
+      output,
+    },
+  });
+
+  telemetry.trackCPUs();
+  telemetry.trackPlatform();
+  telemetry.trackArch();
+  telemetry.trackCIVendorName();
+  telemetry.trackVersion(pkg.version);
+  telemetry.trackCliOptionCwd(parsedArgs.flags['--cwd']);
+  telemetry.trackCliOptionLocalConfig(parsedArgs.flags['--local-config']);
+  telemetry.trackCliOptionGlobalConfig(parsedArgs.flags['--global-config']);
+  telemetry.trackCliFlagDebug(parsedArgs.flags['--debug']);
+  telemetry.trackCliFlagNoColor(parsedArgs.flags['--no-color']);
+  telemetry.trackCliOptionScope(parsedArgs.flags['--scope']);
+  telemetry.trackCliOptionToken(parsedArgs.flags['--token']);
+  telemetry.trackCliOptionTeam(parsedArgs.flags['--team']);
+  telemetry.trackCliOptionApi(parsedArgs.flags['--api']);
 
   if (typeof parsedArgs.flags['--api'] === 'string') {
     apiUrl = parsedArgs.flags['--api'];
@@ -264,6 +317,7 @@ const main = async () => {
     localConfig,
     localConfigPath,
     argv: process.argv,
+    telemetryEventStore,
   });
 
   // The `--cwd` flag is respected for all sub-commands
@@ -272,10 +326,11 @@ const main = async () => {
   }
   const { cwd } = client;
 
+  let defaultDeploy = false;
   // Gets populated to the subcommand name when a built-in is
   // provided, otherwise it remains undefined for an extension
   let subcommand: string | undefined = undefined;
-
+  let userSuppliedSubCommand: string = '';
   // Check if we are deploying something
   if (targetOrSubcommand) {
     const targetPath = join(cwd, targetOrSubcommand);
@@ -299,12 +354,14 @@ const main = async () => {
     if (subcommandExists) {
       debug(`user supplied known subcommand: "${targetOrSubcommand}"`);
       subcommand = targetOrSubcommand;
+      userSuppliedSubCommand = targetOrSubcommand;
     } else {
       debug('user supplied a possible target for deployment or an extension');
     }
   } else {
     debug('user supplied no target, defaulting to deploy');
     subcommand = 'deploy';
+    defaultDeploy = true;
   }
 
   if (subcommand === 'help') {
@@ -324,7 +381,7 @@ const main = async () => {
     !subcommandsWithoutToken.includes(subcommand)
   ) {
     if (isTTY) {
-      output.log(info(`No existing credentials found. Please log in:`));
+      output.log(`No existing credentials found. Please log in:`);
       const result = await doLoginPrompt(client);
 
       // The login function failed, so it returned an exit code
@@ -338,8 +395,8 @@ const main = async () => {
 
       await updateCurrentTeamAfterLogin(client, output, result.teamId);
 
-      configFiles.writeToAuthConfigFile(client.authConfig);
-      configFiles.writeToConfigFile(client.config);
+      configFiles.writeToAuthConfigFile(output, client.authConfig);
+      configFiles.writeToConfigFile(output, client.config);
 
       output.debug(`Saved credentials in "${hp(VERCEL_DIR)}"`);
     } else {
@@ -441,8 +498,7 @@ const main = async () => {
         return 1;
       }
 
-      // eslint-disable-next-line no-console
-      console.error(error('Not able to load user'));
+      output.error('Not able to load user');
       return 1;
     }
 
@@ -477,8 +533,7 @@ const main = async () => {
           return 1;
         }
 
-        // eslint-disable-next-line no-console
-        console.error(error('Not able to load teams'));
+        output.error('Not able to load teams');
         return 1;
       }
 
@@ -498,13 +553,11 @@ const main = async () => {
     }
   }
 
+  client.telemetryEventStore.updateTeamId(client.config.currentTeam);
+
   let exitCode;
-  let metric: ReturnType<typeof metrics> | undefined;
-  const eventCategory = 'Exit Code';
 
   try {
-    const start = Date.now();
-
     if (!targetCommand) {
       // Set this for the metrics to record it at the end
       targetCommand = parsedArgs.args[2];
@@ -517,6 +570,7 @@ const main = async () => {
           parsedArgs.args.slice(3),
           cwd
         );
+        telemetry.trackCliExtension(targetCommand);
       } catch (err: unknown) {
         if (isErrnoException(err) && err.code === 'ENOENT') {
           // Fall back to `vc deploy <dir>`
@@ -533,81 +587,120 @@ const main = async () => {
       let func: any;
       switch (targetCommand) {
         case 'alias':
+          telemetry.trackCliCommandAlias(userSuppliedSubCommand);
           func = require('./commands/alias').default;
           break;
         case 'bisect':
+          telemetry.trackCliCommandBisect(userSuppliedSubCommand);
           func = require('./commands/bisect').default;
           break;
         case 'build':
+          telemetry.trackCliCommandBuild(userSuppliedSubCommand);
           func = require('./commands/build').default;
           break;
         case 'certs':
+          telemetry.trackCliCommandCerts(userSuppliedSubCommand);
           func = require('./commands/certs').default;
           break;
         case 'deploy':
+          telemetry.trackCliCommandDeploy(userSuppliedSubCommand);
+          telemetry.trackCliDefaultDeploy(defaultDeploy);
           func = require('./commands/deploy').default;
           break;
         case 'dev':
+          telemetry.trackCliCommandDev(userSuppliedSubCommand);
           func = require('./commands/dev').default;
           break;
         case 'dns':
+          telemetry.trackCliCommandDns(userSuppliedSubCommand);
           func = require('./commands/dns').default;
           break;
         case 'domains':
+          telemetry.trackCliCommandDomains(userSuppliedSubCommand);
           func = require('./commands/domains').default;
           break;
         case 'env':
+          telemetry.trackCliCommandEnv(userSuppliedSubCommand);
           func = require('./commands/env').default;
           break;
         case 'git':
+          telemetry.trackCliCommandGit(userSuppliedSubCommand);
           func = require('./commands/git').default;
           break;
         case 'init':
+          telemetry.trackCliCommandInit(userSuppliedSubCommand);
           func = require('./commands/init').default;
           break;
         case 'inspect':
+          telemetry.trackCliCommandInspect(userSuppliedSubCommand);
           func = require('./commands/inspect').default;
           break;
+        case 'install':
+          telemetry.trackCliCommandInstall(userSuppliedSubCommand);
+          func = require('./commands/install').default;
+          break;
+        case 'integration':
+          telemetry.trackCliCommandIntegration(userSuppliedSubCommand);
+          func = require('./commands/integration').default;
+          break;
         case 'link':
+          telemetry.trackCliCommandLink(userSuppliedSubCommand);
           func = require('./commands/link').default;
           break;
         case 'list':
+          telemetry.trackCliCommandList(userSuppliedSubCommand);
           func = require('./commands/list').default;
           break;
         case 'logs':
+          telemetry.trackCliCommandLogs(userSuppliedSubCommand);
           func = require('./commands/logs').default;
           break;
         case 'login':
+          telemetry.trackCliCommandLogin(userSuppliedSubCommand);
           func = require('./commands/login').default;
           break;
         case 'logout':
+          telemetry.trackCliCommandLogout(userSuppliedSubCommand);
           func = require('./commands/logout').default;
           break;
         case 'project':
+          telemetry.trackCliCommandProject(userSuppliedSubCommand);
           func = require('./commands/project').default;
           break;
         case 'promote':
+          telemetry.trackCliCommandPromote(userSuppliedSubCommand);
           func = require('./commands/promote').default;
           break;
         case 'pull':
+          telemetry.trackCliCommandPull(userSuppliedSubCommand);
           func = require('./commands/pull').default;
           break;
         case 'redeploy':
+          telemetry.trackCliCommandRedeploy(userSuppliedSubCommand);
           func = require('./commands/redeploy').default;
           break;
         case 'remove':
+          telemetry.trackCliCommandRemove(userSuppliedSubCommand);
           func = require('./commands/remove').default;
           break;
         case 'rollback':
+          telemetry.trackCliCommandRollback(userSuppliedSubCommand);
           func = require('./commands/rollback').default;
           break;
         case 'target':
+          telemetry.trackCliCommandTarget(userSuppliedSubCommand);
           func = require('./commands/target').default;
           break;
         case 'teams':
+          telemetry.trackCliCommandTeams(userSuppliedSubCommand);
           func = require('./commands/teams').default;
           break;
+        case 'telemetry':
+          telemetry.trackCliCommandTelemetry(userSuppliedSubCommand);
+          func = require('./commands/telemetry').default;
+          break;
         case 'whoami':
+          telemetry.trackCliCommandWhoami(userSuppliedSubCommand);
           func = require('./commands/whoami').default;
           break;
         default:
@@ -626,17 +719,6 @@ const main = async () => {
       }
 
       exitCode = await func(client);
-    }
-    const end = Date.now() - start;
-
-    if (shouldCollectMetrics) {
-      const category = 'Command Invocation';
-
-      if (!metric) metric = metrics();
-      metric
-        .timing(category, targetCommand, end, pkg.version)
-        .event(category, targetCommand, pkg.version)
-        .send();
     }
   } catch (err: unknown) {
     if (isErrnoException(err) && err.code === 'ENOTFOUND') {
@@ -686,14 +768,6 @@ const main = async () => {
       return 1;
     }
 
-    if (shouldCollectMetrics) {
-      if (!metric) metric = metrics();
-      metric
-        .event(eventCategory, '1', pkg.version)
-        .exception(errorToString(err))
-        .send();
-    }
-
     // If there is a code we should not consider the error unexpected
     // but instead show the message. Any error that is handled by this should
     // actually be handled in the sub command instead. Please make sure
@@ -714,11 +788,8 @@ const main = async () => {
     return 1;
   }
 
-  if (shouldCollectMetrics) {
-    if (!metric) metric = metrics();
-    metric.event(eventCategory, `${exitCode}`, pkg.version).send();
-  }
-
+  // specifically don't await this, we want to fire and forget
+  telemetryEventStore.save();
   return exitCode;
 };
 
@@ -729,13 +800,11 @@ const handleRejection = async (err: any) => {
     if (err instanceof Error) {
       await handleUnexpected(err);
     } else {
-      // eslint-disable-next-line no-console
-      console.error(error(`An unexpected rejection occurred\n  ${err}`));
+      output.error(`An unexpected rejection occurred\n  ${err}`);
       await reportError(Sentry, client, err);
     }
   } else {
-    // eslint-disable-next-line no-console
-    console.error(error('An unexpected empty rejection occurred'));
+    output.error('An unexpected empty rejection occurred');
   }
 
   process.exit(1);
@@ -750,8 +819,7 @@ const handleUnexpected = async (err: Error) => {
     return;
   }
 
-  // eslint-disable-next-line no-console
-  console.error(error(`An unexpected error occurred!\n${err.stack}`));
+  output.error(`An unexpected error occurred!\n${err.stack}`);
   await reportError(Sentry, client, err);
 
   process.exit(1);

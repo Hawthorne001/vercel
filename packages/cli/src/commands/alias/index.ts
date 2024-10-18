@@ -1,5 +1,5 @@
 import { handleError } from '../../util/error';
-import Client from '../../util/client';
+import type Client from '../../util/client';
 import { parseArguments } from '../../util/get-args';
 import getSubcommand from '../../util/get-subcommand';
 import { help } from '../help';
@@ -8,6 +8,7 @@ import rm from './rm';
 import set from './set';
 import { aliasCommand } from './command';
 import { getFlagsSpecification } from '../../util/get-flags-specification';
+import { AliasTelemetryClient } from '../../util/telemetry/commands/alias';
 
 const COMMAND_CONFIG = {
   default: ['set'],
@@ -17,6 +18,13 @@ const COMMAND_CONFIG = {
 };
 
 export default async function alias(client: Client) {
+  const telemetryClient = new AliasTelemetryClient({
+    opts: {
+      output: client.output,
+      store: client.telemetryEventStore,
+    },
+  });
+
   let parsedArguments;
 
   const flagsSpecification = getFlagsSpecification(aliasCommand.options);
@@ -33,17 +41,20 @@ export default async function alias(client: Client) {
     return 2;
   }
 
-  const { subcommand, args } = getSubcommand(
+  const { subcommand, args, subcommandOriginal } = getSubcommand(
     parsedArguments.args.slice(1),
     COMMAND_CONFIG
   );
 
   switch (subcommand) {
     case 'ls':
+      telemetryClient.trackCliSubcommandLs(subcommandOriginal);
       return ls(client, parsedArguments.flags, args);
     case 'rm':
+      telemetryClient.trackCliSubcommandRemove(subcommandOriginal);
       return rm(client, parsedArguments.flags, args);
     default:
+      telemetryClient.trackCliSubcommandSet(subcommandOriginal);
       return set(client, parsedArguments.flags, args);
   }
 }
