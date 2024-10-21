@@ -1,5 +1,43 @@
 # @vercel/remix-builder
 
+## 2.2.12
+
+### Patch Changes
+
+- Fix corepack `packageManager` detection on monorepos ([#12258](https://github.com/vercel/vercel/pull/12258))
+
+## 2.2.11
+
+### Patch Changes
+
+- Revert "[build-utils] Fix corepack `packageManager` detection on monorepos" ([#12242](https://github.com/vercel/vercel/pull/12242))
+
+## 2.2.10
+
+### Patch Changes
+
+- Disable corepack when Turborepo does not support `COREPACK_HOME` ([#12211](https://github.com/vercel/vercel/pull/12211))
+
+- Fix corepack `packageManager` detection on monorepos ([#12219](https://github.com/vercel/vercel/pull/12219))
+
+## 2.2.9
+
+### Patch Changes
+
+- Update `@remix-run/dev` fork to v2.12.0 ([#12124](https://github.com/vercel/vercel/pull/12124))
+
+## 2.2.8
+
+### Patch Changes
+
+- Revert "Revert "Revert "Fix corepack `packageManager` detection on monorepos""" ([#12099](https://github.com/vercel/vercel/pull/12099))
+
+## 2.2.7
+
+### Patch Changes
+
+- Revert "Revert "Fix corepack `packageManager` detection on monorepos"" ([#11871](https://github.com/vercel/vercel/pull/11871))
+
 ## 2.2.6
 
 ### Patch Changes

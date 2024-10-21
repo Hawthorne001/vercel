@@ -3,7 +3,16 @@ import fs from 'fs-extra';
 import path from 'path';
 import Sema from 'async-sema';
 import spawn from 'cross-spawn';
-import { coerce, intersects, SemVer, validRange } from 'semver';
+import {
+  coerce,
+  intersects,
+  SemVer,
+  validRange,
+  parse,
+  satisfies,
+  gte,
+  minVersion,
+} from 'semver';
 import { SpawnOptions } from 'child_process';
 import { deprecate } from 'util';
 import debug from '../debug';
@@ -16,6 +25,7 @@ import {
 } from './node-version';
 import { readConfigFile } from './read-config-file';
 import { cloneEnv } from '../clone-env';
+import json5 from 'json5';
 
 // Only allow one `runNpmInstall()` invocation to run concurrently
 const runNpmInstallSema = new Sema(1);
@@ -52,6 +62,17 @@ export interface ScanParentDirsResult {
    * or `undefined` if not found.
    */
   lockfileVersion?: number;
+  /**
+   * The contents of the `packageManager` field from `package.json` if found.
+   * The value may come from a different `package.json` file than the one
+   * specified by `packageJsonPath`, in the case of a monorepo.
+   */
+  packageJsonPackageManager?: string;
+  /**
+   * Whether Turborepo supports the `COREPACK_HOME` environment variable.
+   * `undefined` if not a Turborepo project.
+   */
+  turboSupportsCorepackHome?: boolean;
 }
 
 export interface TraverseUpDirectoriesProps {
@@ -164,6 +185,31 @@ export function* traverseUpDirectories({
     const next = path.join(current, '..');
     current = next === current ? undefined : next;
   }
+}
+
+async function readProjectRootInfo({
+  start,
+  base,
+}: TraverseUpDirectoriesProps): Promise<
+  | {
+      packageJson: PackageJson;
+      rootDir: string;
+    }
+  | undefined
+> {
+  let curRootPackageJsonPath: string | undefined;
+  for (const dir of traverseUpDirectories({ start, base })) {
+    const packageJsonPath = path.join(dir, 'package.json');
+    if (await fs.pathExists(packageJsonPath)) {
+      curRootPackageJsonPath = packageJsonPath;
+    }
+  }
+  return curRootPackageJsonPath
+    ? {
+        packageJson: await fs.readJson(curRootPackageJsonPath),
+        rootDir: path.dirname(curRootPackageJsonPath),
+      }
+    : undefined;
 }
 
 /**
@@ -309,17 +355,19 @@ export async function scanParentDirs(
     readPackageJson && pkgJsonPath
       ? JSON.parse(await fs.readFile(pkgJsonPath, 'utf8'))
       : undefined;
-  const [yarnLockPath, npmLockPath, pnpmLockPath, bunLockPath] =
-    await walkParentDirsMulti({
-      base,
-      start: destPath,
-      filenames: [
-        'yarn.lock',
-        'package-lock.json',
-        'pnpm-lock.yaml',
-        'bun.lockb',
-      ],
-    });
+  const {
+    paths: [yarnLockPath, npmLockPath, pnpmLockPath, bunLockPath],
+    packageJsonPackageManager,
+  } = await walkParentDirsMulti({
+    base,
+    start: destPath,
+    filenames: [
+      'yarn.lock',
+      'package-lock.json',
+      'pnpm-lock.yaml',
+      'bun.lockb',
+    ],
+  });
   let lockfilePath: string | undefined;
   let lockfileVersion: number | undefined;
   let cliType: CliType;
@@ -335,6 +383,21 @@ export async function scanParentDirs(
         : null,
       bunLockPath ? fs.readFile(bunLockPath, 'utf8') : null,
     ]);
+
+  const rootProjectInfo = readPackageJson
+    ? await readProjectRootInfo({
+        base,
+        start: destPath,
+      })
+    : undefined;
+  const turboVersionRange =
+    rootProjectInfo?.packageJson?.devDependencies?.turbo;
+  const turboSupportsCorepackHome = turboVersionRange
+    ? await checkTurboSupportsCorepack(
+        turboVersionRange,
+        rootProjectInfo?.rootDir
+      )
+    : undefined;
 
   // Priority order is bun with yarn lock > yarn > pnpm > npm > bun
   if (bunLockBin && hasYarnLock) {
@@ -359,24 +422,82 @@ export async function scanParentDirs(
     // TODO: read "bun-lockfile-format-v0"
     lockfileVersion = 0;
   } else {
-    cliType = packageJson
-      ? detectPackageManagerNameWithoutLockfile(packageJson)
-      : 'npm';
+    cliType = detectPackageManagerNameWithoutLockfile(
+      packageJsonPackageManager,
+      turboSupportsCorepackHome
+    );
   }
 
   const packageJsonPath = pkgJsonPath || undefined;
   return {
     cliType,
     packageJson,
+    packageJsonPackageManager,
     lockfilePath,
     lockfileVersion,
     packageJsonPath,
+    turboSupportsCorepackHome,
   };
 }
 
-function detectPackageManagerNameWithoutLockfile(packageJson: PackageJson) {
-  const packageJsonPackageManager = packageJson.packageManager;
-  if (usingCorepack(process.env, packageJsonPackageManager)) {
+async function checkTurboSupportsCorepack(
+  turboVersionRange: string,
+  rootDir: string
+) {
+  if (turboVersionSpecifierSupportsCorepack(turboVersionRange)) {
+    return true;
+  }
+  const turboJsonPath = path.join(rootDir, 'turbo.json');
+  const turboJsonExists = await fs.pathExists(turboJsonPath);
+
+  let turboJson: null | unknown = null;
+  if (turboJsonExists) {
+    try {
+      turboJson = json5.parse(await fs.readFile(turboJsonPath, 'utf8'));
+    } catch (err) {
+      console.warn(`WARNING: Failed to parse turbo.json`);
+    }
+  }
+
+  const turboJsonIncludesCorepackHome =
+    turboJson !== null &&
+    typeof turboJson === 'object' &&
+    'globalPassThroughEnv' in turboJson &&
+    Array.isArray(turboJson.globalPassThroughEnv) &&
+    turboJson.globalPassThroughEnv.includes('COREPACK_HOME');
+
+  return turboJsonIncludesCorepackHome;
+}
+
+export function turboVersionSpecifierSupportsCorepack(
+  turboVersionSpecifier: string
+) {
+  if (!validRange(turboVersionSpecifier)) {
+    // Version specifiers can be things that aren't version ranges
+    //   ex: "latest", "catalog:", tarball or git URLs
+    // In these cases we can't easily determine if that version
+    // supports corepack, so we assume it doesn't.
+    return false;
+  }
+  const versionSupportingCorepack = '2.1.3';
+  const minTurboBeingUsed = minVersion(turboVersionSpecifier);
+  if (!minTurboBeingUsed) {
+    return false;
+  }
+  return gte(minTurboBeingUsed, versionSupportingCorepack);
+}
+
+function detectPackageManagerNameWithoutLockfile(
+  packageJsonPackageManager: string | undefined,
+  turboSupportsCorepackHome: boolean | undefined
+) {
+  if (
+    usingCorepack(
+      process.env,
+      packageJsonPackageManager,
+      turboSupportsCorepackHome
+    )
+  ) {
     const corepackPackageManager = validateVersionSpecifier(
       packageJsonPackageManager
     );
@@ -397,12 +518,24 @@ function detectPackageManagerNameWithoutLockfile(packageJson: PackageJson) {
   return 'npm';
 }
 
-function usingCorepack(
+export function usingCorepack(
   env: { [x: string]: string | undefined },
-  packageJsonPackageManager: string | undefined
+  packageJsonPackageManager: string | undefined,
+  turboSupportsCorepackHome: boolean | undefined
 ) {
-  const corepackFlagged = env.ENABLE_EXPERIMENTAL_COREPACK === '1';
-  return corepackFlagged && Boolean(packageJsonPackageManager);
+  if (
+    env.ENABLE_EXPERIMENTAL_COREPACK !== '1' ||
+    packageJsonPackageManager === undefined
+  ) {
+    return false;
+  }
+  if (turboSupportsCorepackHome === false) {
+    console.warn(
+      'Warning: Disabling corepack because it may break your project. To use corepack, either upgrade to `turbo@2.1.3+` or include `COREPACK_HOME` in `turbo.json#globalPassThroughEnv`.'
+    );
+    return false;
+  }
+  return true;
 }
 
 export async function walkParentDirs({
@@ -429,20 +562,35 @@ async function walkParentDirsMulti({
   base,
   start,
   filenames,
-}: WalkParentDirsMultiProps): Promise<(string | undefined)[]> {
+}: WalkParentDirsMultiProps): Promise<{
+  paths: (string | undefined)[];
+  packageJsonPackageManager?: string;
+}> {
+  let packageManager: string | undefined;
+
   for (const dir of traverseUpDirectories({ start, base })) {
     const fullPaths = filenames.map(f => path.join(dir, f));
     const existResults = await Promise.all(
       fullPaths.map(f => fs.pathExists(f))
     );
     const foundOneOrMore = existResults.some(b => b);
+    const packageJsonPath = path.join(dir, 'package.json');
+    const packageJson: PackageJson | null = await fs
+      .readJSON(packageJsonPath)
+      .catch(() => null);
+    if (packageJson?.packageManager) {
+      packageManager = packageJson.packageManager;
+    }
 
     if (foundOneOrMore) {
-      return fullPaths.map((f, i) => (existResults[i] ? f : undefined));
+      return {
+        paths: fullPaths.map((f, i) => (existResults[i] ? f : undefined)),
+        packageJsonPackageManager: packageManager,
+      };
     }
   }
 
-  return [];
+  return { paths: [], packageJsonPackageManager: packageManager };
 }
 
 function isSet<T>(v: any): v is Set<T> {
@@ -465,8 +613,14 @@ export async function runNpmInstall(
 
   try {
     await runNpmInstallSema.acquire();
-    const { cliType, packageJsonPath, packageJson, lockfileVersion } =
-      await scanParentDirs(destPath, true);
+    const {
+      cliType,
+      packageJsonPath,
+      packageJson,
+      lockfileVersion,
+      packageJsonPackageManager,
+      turboSupportsCorepackHome,
+    } = await scanParentDirs(destPath, true);
 
     if (!packageJsonPath) {
       debug(
@@ -501,9 +655,11 @@ export async function runNpmInstall(
     opts.env = getEnvForPackageManager({
       cliType,
       lockfileVersion,
-      packageJsonPackageManager: packageJson?.packageManager,
+      packageJsonPackageManager,
       nodeVersion,
       env,
+      packageJsonEngines: packageJson?.engines,
+      turboSupportsCorepackHome,
     });
     let commandArgs: string[];
     const isPotentiallyBrokenNpm =
@@ -589,14 +745,22 @@ export function getEnvForPackageManager({
   packageJsonPackageManager,
   nodeVersion,
   env,
+  packageJsonEngines,
+  turboSupportsCorepackHome,
 }: {
   cliType: CliType;
   lockfileVersion: number | undefined;
   packageJsonPackageManager?: string | undefined;
   nodeVersion: NodeVersion | undefined;
   env: { [x: string]: string | undefined };
+  packageJsonEngines?: PackageJson.Engines;
+  turboSupportsCorepackHome?: boolean | undefined;
 }) {
-  const corepackEnabled = usingCorepack(env, packageJsonPackageManager);
+  const corepackEnabled = usingCorepack(
+    env,
+    packageJsonPackageManager,
+    turboSupportsCorepackHome
+  );
 
   const {
     detectedLockfile,
@@ -608,6 +772,7 @@ export function getEnvForPackageManager({
     corepackPackageManager: packageJsonPackageManager,
     nodeVersion,
     corepackEnabled,
+    packageJsonEngines,
   });
 
   if (corepackEnabled) {
@@ -729,12 +894,14 @@ export function getPathOverrideForPackageManager({
   lockfileVersion,
   corepackPackageManager,
   corepackEnabled = true,
+  packageJsonEngines,
 }: {
   cliType: CliType;
   lockfileVersion: number | undefined;
   corepackPackageManager: string | undefined;
   nodeVersion: NodeVersion | undefined;
   corepackEnabled?: boolean;
+  packageJsonEngines?: PackageJson.Engines;
 }): {
   /**
    * Which lockfile was detected.
@@ -753,63 +920,94 @@ export function getPathOverrideForPackageManager({
   const detectedPackageManger = detectPackageManager(cliType, lockfileVersion);
 
   if (!corepackPackageManager || !corepackEnabled) {
+    if (cliType === 'pnpm' && packageJsonEngines?.pnpm) {
+      checkEnginesPnpmAgainstDetected(
+        packageJsonEngines.pnpm,
+        detectedPackageManger
+      );
+    }
     return detectedPackageManger ?? NO_OVERRIDE;
   }
 
-  if (
-    !validateCorepackPackageManager(
-      cliType,
-      lockfileVersion,
-      corepackPackageManager
-    )
-  ) {
-    console.warn(
-      `WARN [package-manager-warning-1] Detected lockfile "${lockfileVersion}" which is not compatible with the intended corepack package manager "${corepackPackageManager}". Update your lockfile or change to a compatible corepack version.`
-    );
-  }
+  validateCorepackPackageManager(
+    cliType,
+    lockfileVersion,
+    corepackPackageManager,
+    packageJsonEngines?.pnpm
+  );
 
   // corepack is going to take care of it; do nothing special
   return NO_OVERRIDE;
 }
 
+function checkEnginesPnpmAgainstDetected(
+  enginesPnpm: string,
+  detectedPackageManger: ReturnType<typeof detectPackageManager>
+) {
+  if (
+    detectedPackageManger?.pnpmVersionRange &&
+    validRange(detectedPackageManger.pnpmVersionRange) &&
+    validRange(enginesPnpm)
+  ) {
+    if (!intersects(detectedPackageManger.pnpmVersionRange, enginesPnpm)) {
+      // detects ERR_PNPM_UNSUPPORTED_ENGINE and throws more helpful error
+      throw new Error(
+        `Detected pnpm "${detectedPackageManger.pnpmVersionRange}" is not compatible with the engines.pnpm "${enginesPnpm}" in your package.json. Either enable corepack with a valid package.json#packageManager value (https://vercel.com/docs/deployments/configure-a-build#corepack) or remove your package.json#engines.pnpm.`
+      );
+    }
+  }
+  console.warn(
+    `Using package.json#engines.pnpm without corepack and package.json#packageManager could lead to failed builds with ERR_PNPM_UNSUPPORTED_ENGINE. Learn more: https://vercel.com/docs/errors/error-list#pnpm-engine-unsupported`
+  );
+}
+
 function validateCorepackPackageManager(
   cliType: CliType,
   lockfileVersion: number | undefined,
-  corepackPackageManager: string
+  corepackPackageManager: string,
+  enginesPnpmVersionRange: string | undefined
 ) {
   const validatedCorepackPackageManager = validateVersionSpecifier(
     corepackPackageManager
   );
   if (!validatedCorepackPackageManager) {
-    console.warn(
-      `WARN [package-manager-warning-2] Intended corepack defined package manager "${corepackPackageManager}" is not a valid semver value.`
+    throw new Error(
+      `Intended corepack defined package manager "${corepackPackageManager}" is not a valid semver value.`
     );
-    return false;
   }
 
   if (cliType !== validatedCorepackPackageManager.packageName) {
-    console.warn(
-      `WARN [package-manager-warning-3] Detected package manager "${cliType}" does not match intended corepack defined package manager "${validatedCorepackPackageManager.packageName}". Change your lockfile or "package.json#packageManager" value to match.`
+    throw new Error(
+      `Detected package manager "${cliType}" does not match intended corepack defined package manager "${validatedCorepackPackageManager.packageName}". Change your lockfile or "package.json#packageManager" value to match.`
     );
-    return false;
   }
 
-  const corepackPackageManagerVersion = coerce(
-    validatedCorepackPackageManager.packageVersionRange
-  );
+  if (cliType === 'pnpm' && enginesPnpmVersionRange) {
+    const pnpmWithinEngineRange = satisfies(
+      validatedCorepackPackageManager.packageVersion,
+      enginesPnpmVersionRange
+    );
+    if (!pnpmWithinEngineRange) {
+      // pnpm would throw PNPM_UNSUPPORTED_ENGINE with
+      // an unhelpful message. This catches that case
+      // and throws a more helpful message.
+      throw new Error(
+        `The version of pnpm specified in package.json#packageManager (${validatedCorepackPackageManager.packageVersion}) must satisfy the version range in package.json#engines.pnpm (${enginesPnpmVersionRange}).`
+      );
+    }
+  }
 
-  if (corepackPackageManagerVersion === null) {
-    // this will fail to use corepack, but we should return `true` here to let corepack itself
-    // show the appropriate error message and fail the build
-    return true;
-  } else if (lockfileVersion) {
-    return validLockfileForPackageManager(
+  if (lockfileVersion) {
+    const lockfileValid = validLockfileForPackageManager(
       cliType,
       lockfileVersion,
-      corepackPackageManagerVersion
+      validatedCorepackPackageManager.packageVersion
     );
-  } else {
-    return true;
+    if (!lockfileValid) {
+      throw new Error(
+        `Detected lockfile "${lockfileVersion}" which is not compatible with the intended corepack package manager "${corepackPackageManager}". Update your lockfile or change to a compatible corepack version.`
+      );
+    }
   }
 }
 
@@ -835,14 +1033,15 @@ function validateVersionSpecifier(version?: string) {
     return undefined;
   }
 
-  if (!validRange(after)) {
+  const packageVersion = parse(after);
+  if (!packageVersion) {
     // the version after the `@` should be a valid semver value
     return undefined;
   }
 
   return {
     packageName: before,
-    packageVersionRange: after,
+    packageVersion,
   };
 }
 
@@ -865,6 +1064,7 @@ export function detectPackageManager(
             path: '/pnpm7/node_modules/.bin',
             detectedLockfile: 'pnpm-lock.yaml',
             detectedPackageManager: 'pnpm@7.x',
+            pnpmVersionRange: '7.x',
           };
         case 'pnpm 8':
           // pnpm 8
@@ -872,6 +1072,7 @@ export function detectPackageManager(
             path: '/pnpm8/node_modules/.bin',
             detectedLockfile: 'pnpm-lock.yaml',
             detectedPackageManager: 'pnpm@8.x',
+            pnpmVersionRange: '8.x',
           };
         case 'pnpm 9':
           // pnpm 9
@@ -879,6 +1080,7 @@ export function detectPackageManager(
             path: '/pnpm9/node_modules/.bin',
             detectedLockfile: 'pnpm-lock.yaml',
             detectedPackageManager: 'pnpm@9.x',
+            pnpmVersionRange: '9.x',
           };
         case 'pnpm 6':
           return {
@@ -886,6 +1088,7 @@ export function detectPackageManager(
             path: undefined,
             detectedLockfile: 'pnpm-lock.yaml',
             detectedPackageManager: 'pnpm@6.x',
+            pnpmVersionRange: '6.x',
           };
         default:
           return undefined;
@@ -992,16 +1195,21 @@ export async function runCustomInstallCommand({
   spawnOpts?: SpawnOptions;
 }) {
   console.log(`Running "install" command: \`${installCommand}\`...`);
-  const { cliType, lockfileVersion, packageJson } = await scanParentDirs(
-    destPath,
-    true
-  );
+  const {
+    cliType,
+    lockfileVersion,
+    packageJson,
+    packageJsonPackageManager,
+    turboSupportsCorepackHome,
+  } = await scanParentDirs(destPath, true);
   const env = getEnvForPackageManager({
     cliType,
     lockfileVersion,
-    packageJsonPackageManager: packageJson?.packageManager,
+    packageJsonPackageManager,
     nodeVersion,
     env: spawnOpts?.env || {},
+    packageJsonEngines: packageJson?.engines,
+    turboSupportsCorepackHome,
   });
   debug(`Running with $PATH:`, env?.PATH || '');
   await execCommand(installCommand, {
@@ -1018,10 +1226,13 @@ export async function runPackageJsonScript(
 ) {
   assert(path.isAbsolute(destPath));
 
-  const { packageJson, cliType, lockfileVersion } = await scanParentDirs(
-    destPath,
-    true
-  );
+  const {
+    packageJson,
+    cliType,
+    lockfileVersion,
+    packageJsonPackageManager,
+    turboSupportsCorepackHome,
+  } = await scanParentDirs(destPath, true);
   const scriptName = getScriptName(
     packageJson,
     typeof scriptNames === 'string' ? [scriptNames] : scriptNames
@@ -1037,9 +1248,11 @@ export async function runPackageJsonScript(
     env: getEnvForPackageManager({
       cliType,
       lockfileVersion,
-      packageJsonPackageManager: packageJson?.packageManager,
+      packageJsonPackageManager,
       nodeVersion: undefined,
       env: cloneEnv(process.env, spawnOpts?.env),
+      packageJsonEngines: packageJson?.engines,
+      turboSupportsCorepackHome,
     }),
   };
 

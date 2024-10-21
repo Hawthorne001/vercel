@@ -1,5 +1,356 @@
 # vercel
 
+## 37.12.0
+
+### Minor Changes
+
+- [cli] track team id ([#12312](https://github.com/vercel/vercel/pull/12312))
+
+- [cli] add telemetry tracking to `project rm` ([#12326](https://github.com/vercel/vercel/pull/12326))
+
+### Patch Changes
+
+- [cli] add telemetry tracking to `alias rm` ([#12320](https://github.com/vercel/vercel/pull/12320))
+
+- [cli] add telemetry to "remove" command ([#12315](https://github.com/vercel/vercel/pull/12315))
+
+- Fix caching issue with prerenders while Partial Prerendering is enabled ([#12325](https://github.com/vercel/vercel/pull/12325))
+
+- Revert disabling generation of route shells ([#12323](https://github.com/vercel/vercel/pull/12323))
+
+- Silence `punycode` deprecation warning ([#12306](https://github.com/vercel/vercel/pull/12306))
+
+- [cli] fix typo ([#12317](https://github.com/vercel/vercel/pull/12317))
+
+- Updated dependencies [[`b0728d1f6a378f15d32a5416a4a09ad0301f06f5`](https://github.com/vercel/vercel/commit/b0728d1f6a378f15d32a5416a4a09ad0301f06f5), [`78e60bf3acd17c446486059f15a99cca99f1c4dc`](https://github.com/vercel/vercel/commit/78e60bf3acd17c446486059f15a99cca99f1c4dc)]:
+  - @vercel/next@4.3.17
+
+## 37.11.0
+
+### Minor Changes
+
+- [cli] Add default team id for logged out users ([#12310](https://github.com/vercel/vercel/pull/12310))
+
+- [cli] add telemetry for `vercel promote` ([#12304](https://github.com/vercel/vercel/pull/12304))
+
+- [cli] add remaining root command tracking ([#12301](https://github.com/vercel/vercel/pull/12301))
+
+### Patch Changes
+
+- [cli] Add tracking for cli extensions ([#12302](https://github.com/vercel/vercel/pull/12302))
+
+- [cli] remove duplicate global option ([#12303](https://github.com/vercel/vercel/pull/12303))
+
+- [cli] separately track if deploy is done by default ([#12296](https://github.com/vercel/vercel/pull/12296))
+
+- [cli] Add tracking for most global flags and options ([#12300](https://github.com/vercel/vercel/pull/12300))
+
+- [cli] update option tracking to be prefixed appropriately ([#12288](https://github.com/vercel/vercel/pull/12288))
+
+## 37.10.0
+
+### Minor Changes
+
+- Add telemetry for `vercel alias set` ([#12292](https://github.com/vercel/vercel/pull/12292))
+
+### Patch Changes
+
+- Collect telemetry for `vc telemetry status` and `vc telemetry enable`. Telemetry collection is not currently enabled and when it is, will be a major version bump for the CLI. ([#12273](https://github.com/vercel/vercel/pull/12273))
+
+- [cli] Use centralized value for [REDACTED] ([#12295](https://github.com/vercel/vercel/pull/12295))
+
+- Add telemetry to the build command. Telemetry collection is not currently enabled and when it is, will be a major version bump for the CLI. ([#12293](https://github.com/vercel/vercel/pull/12293))
+
+## 37.9.0
+
+### Minor Changes
+
+- [cli] Add telemetry for `vercel logout` ([#12289](https://github.com/vercel/vercel/pull/12289))
+
+- [cli] add telemetry for vercel rollback ([#12287](https://github.com/vercel/vercel/pull/12287))
+
+### Patch Changes
+
+- [cli] Add telemetry for `vercel teams invite email1, email2` ([#12276](https://github.com/vercel/vercel/pull/12276))
+
+- Collect telemetry for `vc whoami`. Telemetry collection is not currently enabled and when it is, will be a major version bump for the CLI. ([#12271](https://github.com/vercel/vercel/pull/12271))
+
+- Partial Prerendering Fallback Shells now respect the revalidate config and now do not produce route shells on-demand. ([#12268](https://github.com/vercel/vercel/pull/12268))
+
+- Add telemetry to the deploy command. Telemetry collection is not currently enabled and when it is, will be a major version bump for the CLI. ([#12269](https://github.com/vercel/vercel/pull/12269))
+
+- Updated dependencies [[`b4aa388c78d6b682c0f1dff38a2a48258e56ff50`](https://github.com/vercel/vercel/commit/b4aa388c78d6b682c0f1dff38a2a48258e56ff50), [`9f797261eabd45d492fdfc198dfd4be33e397582`](https://github.com/vercel/vercel/commit/9f797261eabd45d492fdfc198dfd4be33e397582)]:
+  - @vercel/next@4.3.16
+
+## 37.8.0
+
+### Minor Changes
+
+- Enable viewing a list of team's Marketplace resources via the `vc integration list` command (with the alternative alias `vc integration ls` and basic filtering `--current-project` and `--integration [integration-slug]`) ([#12251](https://github.com/vercel/vercel/pull/12251))
+
+### Patch Changes
+
+- Updated dependencies [[`d01c6b98d6f5f2718b69edec71b4aec40822bfe6`](https://github.com/vercel/vercel/commit/d01c6b98d6f5f2718b69edec71b4aec40822bfe6), [`3a2c2529c642cc2efc11d08a18f2da2ff423b15f`](https://github.com/vercel/vercel/commit/3a2c2529c642cc2efc11d08a18f2da2ff423b15f)]:
+  - @vercel/build-utils@8.4.11
+  - @vercel/static-build@2.5.33
+  - @vercel/hydrogen@1.0.9
+  - @vercel/redwood@2.1.8
+  - @vercel/remix-builder@2.2.12
+  - @vercel/next@4.3.15
+  - @vercel/node@3.2.23
+
+## 37.7.1
+
+### Patch Changes
+
+- [cli] remove extraneous `--yes` option from docs ([#12256](https://github.com/vercel/vercel/pull/12256))
+
+- Updated dependencies [[`6bc94805af7550967ca675194b5b956284da8797`](https://github.com/vercel/vercel/commit/6bc94805af7550967ca675194b5b956284da8797), [`fac89652a412d21b70c015db0863bc89cb45c453`](https://github.com/vercel/vercel/commit/fac89652a412d21b70c015db0863bc89cb45c453)]:
+  - @vercel/build-utils@8.4.10
+  - @vercel/go@3.2.0
+  - @vercel/node@3.2.22
+  - @vercel/static-build@2.5.32
+
+## 37.7.0
+
+### Minor Changes
+
+- Enable direct access to marketplace integration dashboards via `vc integration open [integration]` command ([#12233](https://github.com/vercel/vercel/pull/12233))
+
+- [cli] remove deprecated `certs renew` command ([#12248](https://github.com/vercel/vercel/pull/12248))
+
+### Patch Changes
+
+- [cli] track invocation of `vercel alias *` ([#12250](https://github.com/vercel/vercel/pull/12250))
+
+- [tests] skip flakey gatsby test ([#12244](https://github.com/vercel/vercel/pull/12244))
+
+- Updated dependencies [[`dfad4af5c65a565e0afe28731d3918d03d5085b2`](https://github.com/vercel/vercel/commit/dfad4af5c65a565e0afe28731d3918d03d5085b2)]:
+  - @vercel/build-utils@8.4.9
+  - @vercel/node@3.2.21
+  - @vercel/static-build@2.5.31
+
+## 37.6.3
+
+### Patch Changes
+
+- Updated dependencies [[`226028a8f205a4f795ce8dfdeffc0265cca8d9e2`](https://github.com/vercel/vercel/commit/226028a8f205a4f795ce8dfdeffc0265cca8d9e2)]:
+  - @vercel/build-utils@8.4.8
+  - @vercel/hydrogen@1.0.8
+  - @vercel/next@4.3.14
+  - @vercel/redwood@2.1.7
+  - @vercel/remix-builder@2.2.11
+  - @vercel/static-build@2.5.30
+  - @vercel/node@3.2.20
+
+## 37.6.2
+
+### Patch Changes
+
+- [cli] Remove documented `--next` option from `target ls` ([#12221](https://github.com/vercel/vercel/pull/12221))
+
+- [cli] Add tracking event for Vercel CLI version ([#12212](https://github.com/vercel/vercel/pull/12212))
+
+- [cli] Don't send telemetry if debugging ([#12228](https://github.com/vercel/vercel/pull/12228))
+
+- [cli] set telemetry enabled to false with VERCEL_TELEMETRY_DISABLED ([#12229](https://github.com/vercel/vercel/pull/12229))
+
+- [cli] use `ms` for timeout values ([#12220](https://github.com/vercel/vercel/pull/12220))
+
+- Add tracking events for platform, arch, and cpu_count. ([#12190](https://github.com/vercel/vercel/pull/12190))
+
+- Add support for telemetry debugging via VERCEL_TELEMETRY_DEBUG. Telemetry collection is not currently enabled and when it is, will be a major version bump for the CLI. ([#12209](https://github.com/vercel/vercel/pull/12209))
+
+- [cli] Remove incorrect --output docs for `vercel certs` ([#12230](https://github.com/vercel/vercel/pull/12230))
+
+- Updated dependencies [[`a6227a56d7feec77b5355d2cd5fc07f151021d73`](https://github.com/vercel/vercel/commit/a6227a56d7feec77b5355d2cd5fc07f151021d73), [`e312d610177b28cf1592b18ca85b8d4e088ffc05`](https://github.com/vercel/vercel/commit/e312d610177b28cf1592b18ca85b8d4e088ffc05)]:
+  - @vercel/static-build@2.5.29
+  - @vercel/build-utils@8.4.7
+  - @vercel/hydrogen@1.0.7
+  - @vercel/redwood@2.1.6
+  - @vercel/remix-builder@2.2.10
+  - @vercel/next@4.3.13
+  - @vercel/node@3.2.19
+
+## 37.6.1
+
+### Patch Changes
+
+- Add a command for enabling and disabling telemetry. Telemetry collection is not currently enabled and when it is, will be a major version bump for the CLI. ([#12207](https://github.com/vercel/vercel/pull/12207))
+
+- [cli] Remove incorrect `--json` flag on `vercel alias` ([#12198](https://github.com/vercel/vercel/pull/12198))
+
+- Standardize most error output through `output.error` ([#12012](https://github.com/vercel/vercel/pull/12012))
+
+- Replace `psl` with `tldts` for domain parsing ([#12174](https://github.com/vercel/vercel/pull/12174))
+
+- add support for `images.localPatterns` ([#12195](https://github.com/vercel/vercel/pull/12195))
+
+- [cli] add telemetry tracking to `alias ls` ([#12194](https://github.com/vercel/vercel/pull/12194))
+
+- Add support for tracking Continuous Integration vendors with telemetry ([#12180](https://github.com/vercel/vercel/pull/12180))
+
+- Add session id to events ([#12179](https://github.com/vercel/vercel/pull/12179))
+
+- Updated dependencies [[`5431ffd5de6a572f247e63f737576b4a04884f7b`](https://github.com/vercel/vercel/commit/5431ffd5de6a572f247e63f737576b4a04884f7b)]:
+  - @vercel/build-utils@8.4.6
+  - @vercel/next@4.3.12
+  - @vercel/node@3.2.18
+  - @vercel/static-build@2.5.28
+
+## 37.6.0
+
+### Minor Changes
+
+- [cli] remove `textInput` in favor of `input.text` ([#12168](https://github.com/vercel/vercel/pull/12168))
+
+- Add stub telemetry behavior in preparation for use tracking ([#12173](https://github.com/vercel/vercel/pull/12173))
+
+### Patch Changes
+
+- Introduce new chain configuration for Partial Prerendering ([#12117](https://github.com/vercel/vercel/pull/12117))
+
+- [cli] correctly call to create new deployment when promoting preview deployment ([#12178](https://github.com/vercel/vercel/pull/12178))
+
+- Updated dependencies [[`42ae831561365b8254e62cf57f41caca03af4c31`](https://github.com/vercel/vercel/commit/42ae831561365b8254e62cf57f41caca03af4c31), [`62f434a79fe25009e63fcaefda0abe283c590f58`](https://github.com/vercel/vercel/commit/62f434a79fe25009e63fcaefda0abe283c590f58), [`37ec6fa7f5ff313bfdb22570fb33f8b7eff280e6`](https://github.com/vercel/vercel/commit/37ec6fa7f5ff313bfdb22570fb33f8b7eff280e6)]:
+  - @vercel/next@4.3.11
+  - @vercel/build-utils@8.4.5
+  - @vercel/node@3.2.17
+  - @vercel/static-build@2.5.27
+
+## 37.5.4
+
+### Patch Changes
+
+- Change error printing to use standard Output methods ([#12010](https://github.com/vercel/vercel/pull/12010))
+
+- Updated dependencies [[`2dab096e952c25521bac2537039ed7ca15675095`](https://github.com/vercel/vercel/commit/2dab096e952c25521bac2537039ed7ca15675095)]:
+  - @vercel/build-utils@8.4.4
+  - @vercel/node@3.2.16
+  - @vercel/static-build@2.5.26
+
+## 37.5.3
+
+### Patch Changes
+
+- Updated dependencies [[`f1904566e5c24919425fc2b6c8c84f25f3478e74`](https://github.com/vercel/vercel/commit/f1904566e5c24919425fc2b6c8c84f25f3478e74)]:
+  - @vercel/build-utils@8.4.3
+  - @vercel/node@3.2.15
+  - @vercel/static-build@2.5.25
+
+## 37.5.2
+
+### Patch Changes
+
+- [cli] Add note about epipebomb ([#12144](https://github.com/vercel/vercel/pull/12144))
+
+## 37.5.1
+
+### Patch Changes
+
+- Updated dependencies [[`f396f72b6bab0acf45522d25ee08c9899afdad40`](https://github.com/vercel/vercel/commit/f396f72b6bab0acf45522d25ee08c9899afdad40)]:
+  - @vercel/go@3.1.3
+
+## 37.5.0
+
+### Minor Changes
+
+- Support installing products from Vercel Marketplace via `vc install` ([#12127](https://github.com/vercel/vercel/pull/12127))
+
+### Patch Changes
+
+- [logs] tiny idomatic fixup ([#12094](https://github.com/vercel/vercel/pull/12094))
+
+- [cli] refactor getSubcommand to return original user input ([#12137](https://github.com/vercel/vercel/pull/12137))
+
+- Updated dependencies [[`67839368e71f27c93ca9aa664810ef64de4d4d9c`](https://github.com/vercel/vercel/commit/67839368e71f27c93ca9aa664810ef64de4d4d9c)]:
+  - @vercel/remix-builder@2.2.9
+
+## 37.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`8e90f4156`](https://github.com/vercel/vercel/commit/8e90f415663226411ee6f294e30331a95806e53e)]:
+  - @vercel/build-utils@8.4.2
+  - @vercel/hydrogen@1.0.6
+  - @vercel/next@4.3.10
+  - @vercel/redwood@2.1.5
+  - @vercel/remix-builder@2.2.8
+  - @vercel/static-build@2.5.24
+  - @vercel/node@3.2.14
+
+## 37.4.1
+
+### Patch Changes
+
+- Fix gitBranch parameter for `vc env add` command ([#12085](https://github.com/vercel/vercel/pull/12085))
+
+- Updated dependencies [[`04e15410f`](https://github.com/vercel/vercel/commit/04e15410f09453c528c133d1432fd8b183c5097c)]:
+  - @vercel/build-utils@8.4.1
+  - @vercel/hydrogen@1.0.5
+  - @vercel/next@4.3.9
+  - @vercel/redwood@2.1.4
+  - @vercel/remix-builder@2.2.7
+  - @vercel/static-build@2.5.23
+  - @vercel/node@3.2.13
+
+## 37.4.0
+
+### Minor Changes
+
+- introduce using level to highlight build logs ([#12044](https://github.com/vercel/vercel/pull/12044))
+
+### Patch Changes
+
+- Combine Partial Prerendering lambdas for revalidation and dynamic resumes. ([#12064](https://github.com/vercel/vercel/pull/12064))
+
+- Added support for Partial Fallback Prerendering ([#12036](https://github.com/vercel/vercel/pull/12036))
+
+- Updated dependencies [[`b3540096a`](https://github.com/vercel/vercel/commit/b3540096a39dd8b24b250aa5ad808c8445b5f484), [`49c95b77a`](https://github.com/vercel/vercel/commit/49c95b77a2cea23c6f98c5e084dbe35d081b40bc), [`e7016f9b0`](https://github.com/vercel/vercel/commit/e7016f9b033e88a33a89bf90ae655069f687c72f)]:
+  - @vercel/next@4.3.8
+  - @vercel/build-utils@8.4.0
+  - @vercel/node@3.2.12
+  - @vercel/static-build@2.5.22
+
+## 37.3.0
+
+### Minor Changes
+
+- Support custom environments in `vc env rm` ([#12009](https://github.com/vercel/vercel/pull/12009))
+
+### Patch Changes
+
+- Add error for `vc deploy --env` with no value ([#12002](https://github.com/vercel/vercel/pull/12002))
+
+- Updated dependencies [[`40b7ee0d2`](https://github.com/vercel/vercel/commit/40b7ee0d297c212961279639d9c73d4fed2312f8), [`5ab983009`](https://github.com/vercel/vercel/commit/5ab98300958538fac5e154034eacd9267a79dc26), [`78a3be23e`](https://github.com/vercel/vercel/commit/78a3be23edff1e59a09a75a8adc2013a5a53fb1d)]:
+  - @vercel/build-utils@8.3.9
+  - @vercel/go@3.1.2
+  - @vercel/node@3.2.11
+  - @vercel/static-build@2.5.21
+
+## 37.2.1
+
+### Patch Changes
+
+- Fixes integration not found error when using `vercel install` ([#12035](https://github.com/vercel/vercel/pull/12035))
+
+## 37.2.0
+
+### Minor Changes
+
+- Add `vc install` and `vc integration add` commands ([#12033](https://github.com/vercel/vercel/pull/12033))
+
+### Patch Changes
+
+- [cli] Remove existing metrics gathering behavior ([#12026](https://github.com/vercel/vercel/pull/12026))
+
+- Remove redundant formatting on a few lines of output ([#12011](https://github.com/vercel/vercel/pull/12011))
+
+- Updated dependencies [[`06337ed0b`](https://github.com/vercel/vercel/commit/06337ed0bb1ab4becd1554642c162c75bdcc91c2), [`2fc9e6d81`](https://github.com/vercel/vercel/commit/2fc9e6d8104a3d6308873ef8dafa27c32f0b97be)]:
+  - @vercel/build-utils@8.3.8
+  - @vercel/node@3.2.10
+  - @vercel/static-build@2.5.20
+
 ## 37.1.2
 
 ### Patch Changes

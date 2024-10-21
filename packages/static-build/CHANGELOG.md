@@ -1,5 +1,115 @@
 # @vercel/static-build
 
+## 2.5.33
+
+### Patch Changes
+
+- Fix corepack `packageManager` detection on monorepos ([#12258](https://github.com/vercel/vercel/pull/12258))
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.55
+
+## 2.5.32
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.54
+
+## 2.5.31
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.53
+
+## 2.5.30
+
+### Patch Changes
+
+- Revert "[build-utils] Fix corepack `packageManager` detection on monorepos" ([#12242](https://github.com/vercel/vercel/pull/12242))
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.52
+
+## 2.5.29
+
+### Patch Changes
+
+- Disable corepack when Turborepo does not support `COREPACK_HOME` ([#12211](https://github.com/vercel/vercel/pull/12211))
+
+- Fix corepack `packageManager` detection on monorepos ([#12219](https://github.com/vercel/vercel/pull/12219))
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.51
+
+## 2.5.28
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.50
+
+## 2.5.27
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.49
+
+## 2.5.26
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.48
+
+## 2.5.25
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.47
+
+## 2.5.24
+
+### Patch Changes
+
+- Revert "Revert "Revert "Fix corepack `packageManager` detection on monorepos""" ([#12099](https://github.com/vercel/vercel/pull/12099))
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.46
+
+## 2.5.23
+
+### Patch Changes
+
+- Revert "Revert "Fix corepack `packageManager` detection on monorepos"" ([#11871](https://github.com/vercel/vercel/pull/11871))
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.45
+
+## 2.5.22
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.44
+
+## 2.5.21
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.43
+
+## 2.5.20
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vercel/gatsby-plugin-vercel-builder@2.0.42
+
 ## 2.5.19
 
 ### Patch Changes

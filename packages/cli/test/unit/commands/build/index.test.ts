@@ -340,6 +340,9 @@ describe('build', () => {
       deploymentTarget: 'v8-worker',
       entrypoint: 'api/edge.js',
     });
+    expect(client.telemetryEventStore).toHaveTelemetryEvents([
+      { key: 'flag:prod', value: 'TRUE' },
+    ]);
   });
 
   it('should pull "preview" env vars by default', async () => {
@@ -371,6 +374,9 @@ describe('build', () => {
       await fs.remove(envFilePath);
       await fs.writeJSON(projectJsonPath, originalProjectJson, { spaces: 2 });
     }
+    expect(client.telemetryEventStore).toHaveTelemetryEvents([
+      { key: 'flag:yes', value: 'TRUE' },
+    ]);
   });
 
   it('should pull "production" env vars with `--prod`', async () => {
@@ -406,6 +412,10 @@ describe('build', () => {
       await fs.remove(envFilePath);
       await fs.writeJSON(projectJsonPath, originalProjectJson, { spaces: 2 });
     }
+    expect(client.telemetryEventStore).toHaveTelemetryEvents([
+      { key: 'flag:prod', value: 'TRUE' },
+      { key: 'flag:yes', value: 'TRUE' },
+    ]);
   });
 
   it('should pull "production" env vars with `--target production`', async () => {
@@ -441,6 +451,10 @@ describe('build', () => {
       await fs.remove(envFilePath);
       await fs.writeJSON(projectJsonPath, originalProjectJson, { spaces: 2 });
     }
+    expect(client.telemetryEventStore).toHaveTelemetryEvents([
+      { key: 'option:target', value: 'production' },
+      { key: 'flag:yes', value: 'TRUE' },
+    ]);
   });
 
   it('should build root-level `middleware.js` and exclude from static files', async () => {
@@ -950,6 +964,7 @@ describe('build', () => {
         sizes: [256, 384, 600, 1000],
         domains: [],
         minimumCacheTTL: 60,
+        localPatterns: [{ search: '' }],
         formats: ['image/avif', 'image/webp'],
         contentDispositionType: 'attachment',
       },
@@ -1426,4 +1441,9 @@ describe('build', () => {
       expect(Object.keys(env).includes('VERCEL_ANALYTICS_ID')).toEqual(true);
     });
   });
+
+  describe.todo('--prod');
+  describe.todo('--target');
+  describe.todo('--output');
+  describe.todo('--yes');
 });

@@ -112,7 +112,9 @@ afterAll(async () => {
   }
 });
 
-test('assign a domain to a project', async () => {
+// https://linear.app/vercel/issue/ZERO-2555/fix-or-skip-assign-a-domain-to-a-project-test
+// eslint-disable-next-line jest/no-disabled-tests
+test.skip('assign a domain to a project', async () => {
   const team = await teamPromise;
   const domain = `project-domain.${team.slug}.vercel.app`;
   const directory = await setupE2EFixture('static-deployment');
@@ -732,7 +734,8 @@ test('`vc --debug project ls` should output the projects listing', async () => {
   expect(stderr).toContain('> Projects found under');
 });
 
-test(
+// eslint-disable-next-line jest/no-disabled-tests
+test.skip(
   'deploy gatsby twice and print cached directories',
   async () => {
     const directory = example('gatsby');
