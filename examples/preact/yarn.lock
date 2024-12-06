@@ -8856,10 +8856,10 @@ preact-cli@^3.4.5:
     workbox-strategies "^6.5.3"
     workbox-webpack-plugin "^6.5.3"
 
-preact-render-to-string@6.0.3:
-  version "6.0.3"
-  resolved "https://registry.yarnpkg.com/preact-render-to-string/-/preact-render-to-string-6.0.3.tgz#ee4d8e6fd386489af3f2360c454fe28ec3210ff0"
-  integrity sha512-UUP+EtmLw5ns0fT9C7+CTdLawm1wLmlrZ6WKzJ4Jwhb4EBu4vy5ufIZKlrfvWNnPl1JFoJzZwzfKs97H4N0Vug==
+preact-render-to-string@6.3.1:
+  version "6.3.1"
+  resolved "https://registry.yarnpkg.com/preact-render-to-string/-/preact-render-to-string-6.3.1.tgz#2479ebca8e6721cacfcecaa79bd861005a3d9b8f"
+  integrity sha512-NQ28WrjLtWY6lKDlTxnFpKHZdpjfF+oE6V4tZ0rTrunHrtZp6Dm0oFrcJalt/5PNeqJz4j1DuZDS0Y6rCBoqDA==
   dependencies:
     pretty-format "^3.8.0"
 
