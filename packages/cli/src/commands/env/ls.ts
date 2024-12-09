@@ -1,13 +1,11 @@
 import chalk from 'chalk';
 import ms from 'ms';
-import title from 'title';
-import { Output } from '../../util/output';
 import type {
   CustomEnvironment,
-  Project,
   ProjectEnvVariable,
+  ProjectLinked,
 } from '@vercel-internals/types';
-import Client from '../../util/client';
+import type Client from '../../util/client';
 import formatTable from '../../util/format-table';
 import getEnvRecords from '../../util/env/get-env-records';
 import { getEnvTargetPlaceholder } from '../../util/env/env-target';
@@ -15,16 +13,33 @@ import stamp from '../../util/output/stamp';
 import { getCommandName } from '../../util/pkg-name';
 import ellipsis from '../../util/output/ellipsis';
 import { getCustomEnvironments } from '../../util/target/get-custom-environments';
+import formatEnvironments from '../../util/env/format-environments';
+import { formatProject } from '../../util/projects/format-project';
+import output from '../../output-manager';
+import { EnvLsTelemetryClient } from '../../util/telemetry/commands/env/ls';
+import { listSubcommand } from './command';
+import { parseArguments } from '../../util/get-args';
+import { getFlagsSpecification } from '../../util/get-flags-specification';
+import handleError from '../../util/handle-error';
+import { getLinkedProject } from '../../util/projects/link';
 
-type Options = {};
+export default async function ls(client: Client, argv: string[]) {
+  const telemetryClient = new EnvLsTelemetryClient({
+    opts: {
+      store: client.telemetryEventStore,
+    },
+  });
 
-export default async function ls(
-  client: Client,
-  project: Project,
-  opts: Partial<Options>,
-  args: string[],
-  output: Output
-) {
+  let parsedArgs;
+  const flagsSpecification = getFlagsSpecification(listSubcommand.options);
+  try {
+    parsedArgs = parseArguments(argv, flagsSpecification);
+  } catch (err) {
+    handleError(err);
+    return 1;
+  }
+  const { args } = parsedArgs;
+
   if (args.length > 2) {
     output.error(
       `Invalid number of arguments. Usage: ${getCommandName(
@@ -35,11 +50,29 @@ export default async function ls(
   }
 
   const [envTarget, envGitBranch] = args;
+  telemetryClient.trackCliArgumentEnvironment(envTarget);
+  telemetryClient.trackCliArgumentGitBranch(envGitBranch);
+
+  const link = await getLinkedProject(client);
+  if (link.status === 'error') {
+    return link.exitCode;
+  } else if (link.status === 'not_linked') {
+    output.error(
+      `Your codebase isn’t linked to a project on Vercel. Run ${getCommandName(
+        'link'
+      )} to begin.`
+    );
+    return 1;
+  }
+  client.config.currentTeam =
+    link.org.type === 'team' ? link.org.id : undefined;
+
+  const { project, org } = link;
 
   const lsStamp = stamp();
 
   const [envsResult, customEnvs] = await Promise.all([
-    getEnvRecords(output, client, project.id, 'vercel-cli:env:ls', {
+    getEnvRecords(client, project.id, 'vercel-cli:env:ls', {
       target: envTarget,
       gitBranch: envGitBranch,
     }),
@@ -47,25 +80,24 @@ export default async function ls(
   ]);
   const { envs } = envsResult;
 
+  const projectSlugLink = formatProject(org.slug, project.name);
+
   if (envs.length === 0) {
     output.log(
-      `No Environment Variables found in Project ${chalk.bold(
-        project.name
-      )} ${chalk.gray(lsStamp())}`
+      `No Environment Variables found for ${projectSlugLink} ${chalk.gray(lsStamp())}`
     );
   } else {
     output.log(
-      `Environment Variables found in Project ${chalk.bold(
-        project.name
-      )} ${chalk.gray(lsStamp())}`
+      `Environment Variables found for ${projectSlugLink} ${chalk.gray(lsStamp())}`
     );
-    client.stdout.write(`${getTable(envs, customEnvs)}\n`);
+    client.stdout.write(`${getTable(link, envs, customEnvs)}\n`);
   }
 
   return 0;
 }
 
 function getTable(
+  link: ProjectLinked,
   records: ProjectEnvVariable[],
   customEnvironments: CustomEnvironment[]
 ) {
@@ -78,13 +110,14 @@ function getTable(
     [
       {
         name: '',
-        rows: records.map(row => getRow(row, customEnvironments)),
+        rows: records.map(row => getRow(link, row, customEnvironments)),
       },
     ]
   );
 }
 
 function getRow(
+  link: ProjectLinked,
   env: ProjectEnvVariable,
   customEnvironments: CustomEnvironment[]
 ) {
@@ -105,23 +138,7 @@ function getRow(
   return [
     chalk.bold(env.key),
     value,
-    formatEnvTarget(env, customEnvironments),
+    formatEnvironments(link, env, customEnvironments),
     env.createdAt ? `${ms(now - env.createdAt)} ago` : '',
   ];
-}
-
-function formatEnvTarget(
-  env: ProjectEnvVariable,
-  customEnvironments: CustomEnvironment[]
-) {
-  const defaultTargets = (
-    Array.isArray(env.target) ? env.target : [env.target || '']
-  ).map(t => title(t));
-  const customTargets = env.customEnvironmentIds
-    ? env.customEnvironmentIds
-        .map(id => customEnvironments.find(e => e.id === id)?.name)
-        .filter(Boolean)
-    : [];
-  const targetsString = [...defaultTargets, ...customTargets].join(', ');
-  return env.gitBranch ? `${targetsString} (${env.gitBranch})` : targetsString;
 }

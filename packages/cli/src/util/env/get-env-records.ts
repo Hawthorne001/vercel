@@ -1,7 +1,7 @@
 import { URLSearchParams } from 'url';
-import { Output } from '../output';
-import Client from '../client';
+import type Client from '../client';
 import type { ProjectEnvVariable } from '@vercel-internals/types';
+import output from '../../output-manager';
 
 /** The CLI command that was used that needs the environment variables. */
 export type EnvRecordsSource =
@@ -13,7 +13,6 @@ export type EnvRecordsSource =
   | 'vercel-cli:pull';
 
 export default async function getEnvRecords(
-  output: Output,
   client: Client,
   projectId: string,
   source: EnvRecordsSource,
@@ -64,7 +63,6 @@ interface PullEnvOptions {
 }
 
 export async function pullEnvRecords(
-  output: Output,
   client: Client,
   projectId: string,
   source: EnvRecordsSource,

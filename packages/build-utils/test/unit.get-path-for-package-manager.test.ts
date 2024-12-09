@@ -1,5 +1,6 @@
 import { delimiter } from 'path';
 import { getPathForPackageManager } from '../src';
+import { describe, test, expect } from 'vitest';
 
 describe('Test `getPathForPackageManager()`', () => {
   test.each<{
@@ -127,6 +128,7 @@ describe('Test `getPathForPackageManager()`', () => {
       want: {
         detectedLockfile: 'pnpm-lock.yaml',
         detectedPackageManager: 'pnpm@7.x',
+        pnpmVersionRange: '7.x',
         path: '/pnpm7/node_modules/.bin',
         yarnNodeLinker: undefined,
       },

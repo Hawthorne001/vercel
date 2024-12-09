@@ -1,8 +1,7 @@
 import chalk from 'chalk';
-import psl from 'psl';
-
+import { parse } from 'tldts';
+import { errorToString } from '@vercel/error-utils';
 import * as ERRORS from '../../util/errors-ts';
-import Client from '../../util/client';
 import getDomainPrice from '../../util/domains/get-domain-price';
 import getDomainStatus from '../../util/domains/get-domain-status';
 import getScope from '../../util/get-scope';
@@ -11,21 +10,35 @@ import confirm from '../../util/input/confirm';
 import purchaseDomain from '../../util/domains/purchase-domain';
 import stamp from '../../util/output/stamp';
 import { getCommandName } from '../../util/pkg-name';
-import { errorToString } from '@vercel/error-utils';
+import output from '../../output-manager';
+import { DomainsBuyTelemetryClient } from '../../util/telemetry/commands/domains/buy';
+import type Client from '../../util/client';
+import { buySubcommand } from './command';
+import { parseArguments } from '../../util/get-args';
+import { getFlagsSpecification } from '../../util/get-flags-specification';
+import handleError from '../../util/handle-error';
 
-type Options = {};
+export default async function buy(client: Client, argv: string[]) {
+  const telemetry = new DomainsBuyTelemetryClient({
+    opts: {
+      store: client.telemetryEventStore,
+    },
+  });
 
-export default async function buy(
-  client: Client,
-  opts: Partial<Options>,
-  args: string[]
-) {
-  const { output } = client;
-  const { contextName } = await getScope(client);
-
-  const skipConfirmation = !!process.env.CI;
+  let parsedArgs;
+  const flagsSpecification = getFlagsSpecification(buySubcommand.options);
+  try {
+    parsedArgs = parseArguments(argv, flagsSpecification);
+  } catch (error) {
+    handleError(error);
+    return 1;
+  }
+  const { args } = parsedArgs;
 
   const [domainName] = args;
+  const skipConfirmation = !!process.env.CI;
+  telemetry.trackCliArgumentDomain(domainName);
+
   if (!domainName) {
     output.error(
       `Missing domain name. Run ${getCommandName(`domains --help`)}`
@@ -33,11 +46,9 @@ export default async function buy(
     return 1;
   }
 
-  const parsedDomain = psl.parse(domainName);
-  if (parsedDomain.error) {
-    output.error(`The provided domain name ${param(domainName)} is invalid`);
-    return 1;
-  }
+  const { contextName } = await getScope(client);
+
+  const parsedDomain = parse(domainName);
 
   const { domain: rootDomain, subdomain } = parsedDomain;
   if (subdomain || !rootDomain) {

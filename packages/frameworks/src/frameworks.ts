@@ -1106,7 +1106,7 @@ export const frameworks = [
       },
       devCommand: {
         placeholder: 'vite dev',
-        value: 'vite dev',
+        value: 'vite dev --port $PORT',
       },
       outputDirectory: {
         value: 'public',
@@ -1975,7 +1975,8 @@ export const frameworks = [
     detectors: {
       every: [
         {
-          path: 'main.py',
+          path: 'requirements.txt',
+          matchContent: 'python-fasthtml',
         },
       ],
     },
